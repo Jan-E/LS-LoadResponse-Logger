@@ -2,16 +2,18 @@
 	class LoadResponseLogger extends \ls\pluginmanager\PluginBase
 	{
 
-		static protected $description = 'This plugins logs $oResponses in application/controllers/survey/index.php function action()';
+		static protected $description = 'Log $oResponses, used in application/controllers/survey/index.php function action()';
 		static protected $name = 'LoadResponseLogger';
 
 		protected $storage = 'DbStorage';
 
 		public function init()
 		{
-			$sql = "CREATE TABLE IF NOT EXISTS lime_response_log (
+			$sDBPrefix = Yii::app()->db->tablePrefix;
+			$sql = "CREATE TABLE IF NOT EXISTS {$sDBPrefix}response_log (
 				`id` int(11) NOT NULL AUTO_INCREMENT,
 				`date` date NOT NULL,
+				`remote_addr` varchar(39) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
 				`surveyid` int(11) NOT NULL,
 				`token` varchar(35) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
 				`response_count` int(11) NOT NULL,
@@ -98,12 +100,13 @@
 			$response_count = count($responses);
 			foreach ($responses as $response) {
 				$date = date("Y-m-d H:i:s", time());
+				$remote_addr = $_SERVER["REMOTE_ADDR"];
 				$token = $response->token;
 				$responseid = $response->id;
 				$single_response = $response;
 				$responsedump = print_r($response,true);
-				//echo "<pre>\n\n\n\ndate={$date}\nsurveyid = {$surveyid}\ntoken = {$token}\nresponse count = {$response_count}\nresponseid = {$responseid}\nresponse = {$responsedump}</pre>\n";
-				$this->saveLoadResponse($date, $surveyid, $token, $response_count, $responseid, $responsedump);
+				//echo "<pre>\n\n\n\ndate={$date}\nremote_addr = {$remote_addr}\nsurveyid = {$surveyid}\ntoken = {$token}\nresponse count = {$response_count}\nresponseid = {$responseid}\nresponse = {$responsedump}</pre>\n";
+				$this->saveLoadResponse($date, $remote_addr, $surveyid, $token, $response_count, $responseid, $responsedump);
 			}
 			if ($this->get('forceloadsingle', 'Survey', $surveyid) == true) {
 				if ($response_count == 1) {
@@ -115,15 +118,16 @@
 			// echo "<br /><br /><br /><pre>_SESSION = ".print_r($_SESSION,true)."</pre>\n";
 		}
 
-		private function saveLoadResponse($date, $surveyid, $token, $response_count, $responseid, $response) {
+		private function saveLoadResponse($date, $remote_addr, $surveyid, $token, $response_count, $responseid, $response) {
 			//CREATE ENTRY INTO "lime_response_log"
 			$sql = "insert into lime_response_log
-				(date, surveyid, token, response_count, responseid, response)
+				(date, remote_addr, surveyid, token, response_count, responseid, response)
 			values
-				(:date, :surveyid, :token, :response_count, :responseid, :response)
+				(:date, :remote_addr, :surveyid, :token, :response_count, :responseid, :response)
 			";
 			$parameters = array(
 				date => $date,
+				remote_addr => $remote_addr,
 				surveyid => $surveyid,
 				token => $token,
 				response_count => $response_count,
