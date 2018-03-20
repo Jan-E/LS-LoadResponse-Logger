@@ -21,11 +21,78 @@
 			) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 			Yii::app()->db->createCommand($sql)->execute();
 			$this->subscribe('beforeLoadResponse');
+			
+			// Provides survey specific settings.
+			$this->subscribe('beforeSurveySettings');
+
+			// Saves survey specific settings.
+			$this->subscribe('newSurveySettings');
+		}
+		
+		protected $settings = array(
+			'enabled' => array(
+				'type' => 'select',
+				'options' => array(
+					0 => 'No',
+					1 => 'Yes'
+				),
+				'default' => 0,
+				'label' => 'Use load response logger for every survey by default?',
+				'help' => 'Overwritable in each Survey setting',
+			),
+			forceloadsingle => array(
+				'type' => 'select',
+				'options' => array(
+					0 => 'No',
+					1 => 'Yes'
+				),
+				'default' => 0,
+				'label' => 'Force load of single response by default?',
+				'help' => 'Overwritable in each Survey setting',
+			),
+		);
+
+		public function beforeSurveySettings()
+		{
+			$event = $this->event;
+			$settings = array(
+				'name' => get_class($this),
+				'settings' => array(
+					'enabled' => array(
+						'type' => 'boolean',
+						'label' => 'Use for this survey',
+						'current' => $this->get('enabled', 'Survey', $event->get('survey'), 0)
+					),
+					forceloadsingle => array(
+						'type' => 'boolean',
+						'label' => 'Force load of single response (override usesleft)',
+						'current' => $this->get('forceloadsingle', 'Survey', $event->get('survey'), 0)
+					)
+				)
+			);
+			$event->set("surveysettings.{$this->id}", $settings);
+		}
+
+		/**
+		 * Save the settings
+		 */
+		public function newSurveySettings()
+		{
+			$event = $this->event;
+			foreach ($event->get('settings') as $name => $value)
+			{
+				/* In order use survey setting, if not set, use global, if not set use default */
+				$default=$event->get($name,null,null,isset($this->settings[$name]['default'])?$this->settings[$name]['default']:NULL);
+				$this->set($name, $value, 'Survey', $event->get('survey'),$default);
+			}
 		}
 
 		public function beforeLoadResponse()
 		{
 			$surveyid = $this->event->get('surveyId');
+			if ($this->get('enabled', 'Survey', $surveyid) == false) {
+				return;
+			}
 			// load $oResponses
 			$responses = $this->event->get('responses');
 			$response_count = count($responses);
@@ -38,10 +105,12 @@
 				//echo "<pre>\n\n\n\ndate={$date}\nsurveyid = {$surveyid}\ntoken = {$token}\nresponse count = {$response_count}\nresponseid = {$responseid}\nresponse = {$responsedump}</pre>\n";
 				$this->saveLoadResponse($date, $surveyid, $token, $response_count, $responseid, $responsedump);
 			}
-			if ($response_count == 1) {
-				// make sure a single response is returned to $event->get('response') in application/controllers/survey/index.php
-				$this->event->set('response', $single_response);
-				//echo "<pre>single_response = ".print_r($single_response,true)."</pre>\n";
+			if ($this->get('forceloadsingle', 'Survey', $surveyid) == true) {
+				if ($response_count == 1) {
+					// make sure a single response is returned to $event->get('response') in application/controllers/survey/index.php
+					$this->event->set('response', $single_response);
+					//echo "<pre>single_response = ".print_r($single_response,true)."</pre>\n";
+				}
 			}
 			// echo "<br /><br /><br /><pre>_SESSION = ".print_r($_SESSION,true)."</pre>\n";
 		}
