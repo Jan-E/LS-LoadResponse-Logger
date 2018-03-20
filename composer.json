@@ -1,0 +1,15 @@
+{
+    "name": "Jan-E/LS-LoadResponse-Logger",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Jan",
+            "email": "jan@kleinestappen.nl",
+            "name": "Sam",
+            "email": "sam@moussa.nl"
+        }
+    ],
+    "require": {
+        "sam-it/yii1-datatables": "^1.0.0"
+    }
+}
