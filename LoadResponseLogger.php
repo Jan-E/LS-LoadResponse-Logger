@@ -12,16 +12,18 @@
 			$sDBPrefix = Yii::app()->db->tablePrefix;
 			$sql = "CREATE TABLE IF NOT EXISTS {$sDBPrefix}response_log (
 				`id` int(11) NOT NULL AUTO_INCREMENT,
-				`date` date NOT NULL,
+				`date` datetime NOT NULL,
 				`remote_addr` varchar(39) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
 				`surveyid` int(11) NOT NULL,
-				`token` varchar(35) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
-				`response_count` int(11) NOT NULL,
-				`responseid` int(11) NOT NULL,
+				`token` varchar(35) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+				`response_count` int(11) DEFAULT NULL,
+				`responseid` int(11) DEFAULT NULL,
 				`response` longtext COLLATE utf8mb4_unicode_ci NOT NULL,
 				PRIMARY KEY (id)
 			) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 			Yii::app()->db->createCommand($sql)->execute();
+			
+			$this->subscribe('beforeSurveyPage');
 			$this->subscribe('beforeLoadResponse');
 			
 			// Provides survey specific settings.
@@ -89,6 +91,21 @@
 			}
 		}
 
+		public function beforeSurveyPage()
+		{
+			$surveyid = $this->event->get('surveyId');
+			if ($this->get('enabled', 'Survey', $surveyid) == false) {
+				return;
+			}
+			$date = date("Y-m-d H:i:s", time());
+			$remote_addr = $_SERVER["REMOTE_ADDR"];
+			$token = NULL;
+			$response_count = NULL;
+			$responseid = NULL;
+			$responsedump = "beforeSurveyPage";
+			$this->saveLoadResponse($date, $remote_addr, $surveyid, $token, $response_count, $responseid, $responsedump);
+		}
+		
 		public function beforeLoadResponse()
 		{
 			$surveyid = $this->event->get('surveyId');
@@ -104,7 +121,7 @@
 				$token = $response->token;
 				$responseid = $response->id;
 				$single_response = $response;
-				$responsedump = print_r($response,true);
+				$responsedump = "beforeLoadResponse: ".print_r($response,true);
 				//echo "<pre>\n\n\n\ndate={$date}\nremote_addr = {$remote_addr}\nsurveyid = {$surveyid}\ntoken = {$token}\nresponse count = {$response_count}\nresponseid = {$responseid}\nresponse = {$responsedump}</pre>\n";
 				$this->saveLoadResponse($date, $remote_addr, $surveyid, $token, $response_count, $responseid, $responsedump);
 			}
