@@ -8,8 +8,5 @@
             "name": "Sam",
             "email": "sam@befound.nl"
         }
-    ],
-    "require": {
-        "sam-it/yii1-datatables": "^1.0.0"
-    }
+    ]
 }
