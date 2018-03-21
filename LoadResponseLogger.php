@@ -99,7 +99,8 @@
 			}
 			$date = date("Y-m-d H:i:s", time());
 			$remote_addr = $_SERVER["REMOTE_ADDR"];
-			$token = NULL;
+			// borrow code at https://github.com/LimeSurvey/LimeSurvey/blob/master/application/models/Token.php#L224
+			$token = isset($_REQUEST["token"]) ? preg_replace('/[^0-9a-zA-Z_~]/', '', $_REQUEST["token"]) : NULL;
 			$response_count = NULL;
 			$responseid = NULL;
 			$responsedump = "beforeSurveyPage";
