@@ -2,7 +2,7 @@
 	class LoadResponseLogger extends \ls\pluginmanager\PluginBase
 	{
 
-		static protected $description = 'Log $oResponses, used in application/controllers/survey/index.php function action()';
+		static protected $description = 'Log $_POST and $oResponses, used in application/controllers/survey/index.php function action()';
 		static protected $name = 'LoadResponseLogger';
 
 		protected $storage = 'DbStorage';
@@ -103,8 +103,10 @@
 			$token = isset($_REQUEST["token"]) ? preg_replace('/[^0-9a-zA-Z_~]/', '', $_REQUEST["token"]) : NULL;
 			$response_count = NULL;
 			$responseid = NULL;
-			$responsedump = "beforeSurveyPage";
-			$this->saveLoadResponse($date, $remote_addr, $surveyid, $token, $response_count, $responseid, $responsedump);
+			$responsedump = isset($_POST["token"]) ? "beforeSurveyPage post-log: ".print_r($_POST,true) : "beforeSurveyPage no \$_POST[\"token\"], only \$_GET";
+			if (isset($_REQUEST["token"])) {
+				$this->saveLoadResponse($date, $remote_addr, $surveyid, $token, $response_count, $responseid, $responsedump);
+			}
 		}
 		
 		public function beforeLoadResponse()
