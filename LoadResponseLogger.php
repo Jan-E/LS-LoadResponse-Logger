@@ -152,8 +152,9 @@
 		}
 
 		private function saveLoadResponse($date, $remote_addr, $surveyid, $token, $response_count, $responseid, $response) {
-			//CREATE ENTRY INTO "lime_response_log"
-			$sql = "insert into lime_response_log
+			//CREATE ENTRY INTO "{$sDBPrefix}response_log"
+			$sDBPrefix = Yii::app()->db->tablePrefix;
+			$sql = "insert into {$sDBPrefix}response_log
 				(date, remote_addr, surveyid, token, response_count, responseid, response)
 			values
 				(:date, :remote_addr, :surveyid, :token, :response_count, :responseid, :response)
@@ -167,7 +168,7 @@
 				responseid => $responseid,
 				response => $response
 			);
-			//echo "<br /><br /><br /><pre>parameters = ".print_r($parameters,true)."</pre>\n"; die();
+			//echo "<br /><br /><br /><pre>".$sql."\nparameters = ".print_r($parameters,true)."</pre>\n"; die();
 			Yii::app()->db->createCommand($sql)->execute($parameters);
 		}
 	}
