@@ -10,7 +10,7 @@
 		public function init()
 		{
 			$sDBPrefix = Yii::app()->db->tablePrefix;
-			$sql = "CREATE TABLE IF NOT EXISTS {$sDBPrefix}response_log (
+			$mysql = "CREATE TABLE IF NOT EXISTS {$sDBPrefix}response_log (
 				`id` int(11) NOT NULL AUTO_INCREMENT,
 				`date` datetime NOT NULL,
 				`remote_addr` varchar(39) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
@@ -21,6 +21,19 @@
 				`response` longtext COLLATE utf8mb4_unicode_ci NOT NULL,
 				PRIMARY KEY (id)
 			) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+			$pgsql = "CREATE TABLE IF NOT EXISTS {$sDBPrefix}response_log (
+				id SERIAL,
+				date timestamp without time zone NOT NULL,
+				remote_addr character varying(39) NOT NULL,
+				surveyid integer NOT NULL,
+				token character varying(35),
+				response_count integer,
+				responseid integer,
+				response text
+			)";
+			$constring = Yii::app()->db->connectionString;
+			if (stristr($constring, "mysql:") !== false) $sql = $mysql;
+			else $sql = $pgsql;
 			Yii::app()->db->createCommand($sql)->execute();
 			
 			$this->subscribe('beforeSurveyPage');
