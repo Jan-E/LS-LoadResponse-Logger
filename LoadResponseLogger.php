@@ -9,32 +9,34 @@
 
 		public function init()
 		{
-			$sDBPrefix = Yii::app()->db->tablePrefix;
-			$mysql = "CREATE TABLE IF NOT EXISTS {$sDBPrefix}response_log (
-				`id` int(11) NOT NULL AUTO_INCREMENT,
-				`date` datetime NOT NULL,
-				`remote_addr` varchar(39) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
-				`surveyid` int(11) NOT NULL,
-				`token` varchar(35) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
-				`response_count` int(11) DEFAULT NULL,
-				`responseid` int(11) DEFAULT NULL,
-				`response` longtext COLLATE utf8mb4_unicode_ci NOT NULL,
-				PRIMARY KEY (id)
-			) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-			$pgsql = "CREATE TABLE IF NOT EXISTS {$sDBPrefix}response_log (
-				id SERIAL,
-				date timestamp without time zone NOT NULL,
-				remote_addr character varying(39) NOT NULL,
-				surveyid integer NOT NULL,
-				token character varying(35),
-				response_count integer,
-				responseid integer,
-				response text
-			)";
-			$constring = Yii::app()->db->connectionString;
-			if (stristr($constring, "mysql:") !== false) $sql = $mysql;
-			else $sql = $pgsql;
-			Yii::app()->db->createCommand($sql)->execute();
+			if ($this->get('logtable', 'Survey', $surveyid) == true) {
+				$sDBPrefix = Yii::app()->db->tablePrefix;
+				$mysql = "CREATE TABLE IF NOT EXISTS {$sDBPrefix}response_log (
+					`id` int(11) NOT NULL AUTO_INCREMENT,
+					`date` datetime NOT NULL,
+					`remote_addr` varchar(39) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+					`surveyid` int(11) NOT NULL,
+					`token` varchar(35) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+					`response_count` int(11) DEFAULT NULL,
+					`responseid` int(11) DEFAULT NULL,
+					`response` longtext COLLATE utf8mb4_unicode_ci NOT NULL,
+					PRIMARY KEY (id)
+				) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+				$pgsql = "CREATE TABLE IF NOT EXISTS {$sDBPrefix}response_log (
+					id SERIAL,
+					date timestamp without time zone NOT NULL,
+					remote_addr character varying(39) NOT NULL,
+					surveyid integer NOT NULL,
+					token character varying(35),
+					response_count integer,
+					responseid integer,
+					response text
+				)";
+				$constring = Yii::app()->db->connectionString;
+				if (stristr($constring, "mysql:") !== false) $sql = $mysql;
+				else $sql = $pgsql;
+				Yii::app()->db->createCommand($sql)->execute();
+			}
 			
 			$this->subscribe('beforeSurveyPage');
 			$this->subscribe('beforeLoadResponse');
@@ -47,14 +49,24 @@
 		}
 		
 		protected $settings = array(
-			'enabled' => array(
+			enabled => array(
 				'type' => 'select',
 				'options' => array(
 					0 => 'No',
 					1 => 'Yes'
 				),
 				'default' => 0,
-				'label' => 'Use load response logger for every survey by default?',
+				'label' => 'Use load response logger by default?',
+				'help' => 'Overwritable in each Survey setting',
+			),
+			logtable => array(
+				'type' => 'select',
+				'options' => array(
+					0 => 'No',
+					1 => 'Yes'
+				),
+				'default' => 0,
+				'label' => 'Store logs in response_log table by default?',
 				'help' => 'Overwritable in each Survey setting',
 			),
 			forceloadsingle => array(
@@ -75,14 +87,20 @@
 			$settings = array(
 				'name' => get_class($this),
 				'settings' => array(
-					'enabled' => array(
+					enabled => array(
 						'type' => 'boolean',
-						'label' => 'Use for this survey',
+						'label' => 'Use plugin for this survey',
 						'current' => $this->get('enabled', 'Survey', $event->get('survey'), 0)
+					),
+					logtable => array(
+						'type' => 'boolean',
+						'label' => 'Store logs in response_log table',
+						'current' => $this->get('logtable', 'Survey', $event->get('survey'), 0)
 					),
 					forceloadsingle => array(
 						'type' => 'boolean',
-						'label' => 'Force load of single response (override usesleft)',
+						'label' => 'Force load of single response',
+						'help' => 'Do not do this, unless you are absolutely sure (overrides usesleft and other LS settings)',
 						'current' => $this->get('forceloadsingle', 'Survey', $event->get('survey'), 0)
 					)
 				)
