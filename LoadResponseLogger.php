@@ -49,7 +49,7 @@
 		}
 		
 		protected $settings = array(
-			enabled => array(
+			'enabled' => array(
 				'type' => 'select',
 				'options' => array(
 					0 => 'No',
@@ -57,9 +57,9 @@
 				),
 				'default' => 0,
 				'label' => 'Use load response logger by default?',
-				'help' => 'Overwritable in each Survey setting',
+				'help' => 'Overwritable in the Survey settings',
 			),
-			logtable => array(
+			'logtable' => array(
 				'type' => 'select',
 				'options' => array(
 					0 => 'No',
@@ -67,17 +67,32 @@
 				),
 				'default' => 0,
 				'label' => 'Store logs in response_log table by default?',
-				'help' => 'Overwritable in each Survey setting',
+				'help' => 'Overwritable in the Survey settings',
 			),
-			forceloadsingle => array(
+			'logsurvey' => array(
 				'type' => 'select',
 				'options' => array(
 					0 => 'No',
 					1 => 'Yes'
 				),
 				'default' => 0,
-				'label' => 'Force load of single response by default?',
-				'help' => 'Overwritable in each Survey setting',
+				'label' => 'Store logs in Response Log \'survey\' by default?',
+				'help' => 'Overwritable in the Survey settings',
+			),
+			'logsurveyid' => array(
+				'type' => 'int',
+				'default' => 999999,
+				'label' => 'Survey ID of the Response Log \'survey\'',
+				'help' => 'Make sure a Survey with this ID is activated.<br />Use limesurvey_survey_999999.lss to add it.',
+			),
+			'forceloadsingle' => array(
+				'type' => 'select',
+				'options' => array(
+					0 => 'No',
+				),
+				'default' => 0,
+				'label' => 'Do not force load of single response by default',
+				'help' => 'Only configurable in the Survey settings',
 			),
 		);
 
@@ -87,21 +102,36 @@
 			$settings = array(
 				'name' => get_class($this),
 				'settings' => array(
-					enabled => array(
+					'enabled' => array(
 						'type' => 'boolean',
 						'label' => 'Use plugin for this survey',
-						'current' => $this->get('enabled', 'Survey', $event->get('survey'), 0)
+						'current' => $this->get('enabled', 'Survey', $event->get('survey'), $this->get('enabled'))
 					),
-					logtable => array(
+					'logtable' => array(
 						'type' => 'boolean',
 						'label' => 'Store logs in response_log table',
-						'current' => $this->get('logtable', 'Survey', $event->get('survey'), 0)
+						'current' => $this->get('logtable', 'Survey', $event->get('survey'), $this->get('logtable'))
 					),
-					forceloadsingle => array(
+					'logsurvey' => array(
 						'type' => 'boolean',
+						'label' => 'Store logs in response_log table',
+						'current' => $this->get('logsurvey', 'Survey', $event->get('survey'), $this->get('logsurvey'))
+					),
+					'logsurveyid' => array(
+						'type' => 'int',
+						'label' => 'Survey ID of the Response Log \'survey\'',
+						'help' => 'Make sure a Survey with this ID is activated. Use the lss to add it.',
+						'current' => $this->get('logsurveyid', 'Survey', $event->get('survey'), $this->get('logsurveyid'))
+					),
+					'forceloadsingle' => array(
+						'type' => 'boolean',
+						'options' => array(
+							0 => 'No',
+							1 => 'Yes'
+						),
 						'label' => 'Force load of single response',
 						'help' => 'Do not do this, unless you are absolutely sure (overrides usesleft and other LS settings)',
-						'current' => $this->get('forceloadsingle', 'Survey', $event->get('survey'), 0)
+						'current' => $this->get('forceloadsingle', 'Survey', $event->get('survey'), $this->get('forceloadsingle'))
 					)
 				)
 			);
@@ -170,24 +200,129 @@
 		}
 
 		private function saveLoadResponse($date, $remote_addr, $surveyid, $token, $response_count, $responseid, $response) {
-			//CREATE ENTRY INTO "{$sDBPrefix}response_log"
 			$sDBPrefix = Yii::app()->db->tablePrefix;
-			$sql = "insert into {$sDBPrefix}response_log
-				(date, remote_addr, surveyid, token, response_count, responseid, response)
-			values
-				(:date, :remote_addr, :surveyid, :token, :response_count, :responseid, :response)
-			";
 			$parameters = array(
-				date => $date,
-				remote_addr => $remote_addr,
-				surveyid => $surveyid,
-				token => $token,
-				response_count => $response_count,
-				responseid => $responseid,
-				response => $response
+				'date' => $date,
+				'remote_addr' => $remote_addr,
+				'surveyid' => $surveyid,
+				'token' => $token,
+				'response_count' => $response_count,
+				'responseid' => $responseid,
+				'response' => $response
 			);
-			//echo "<br /><br /><br /><pre>".$sql."\nparameters = ".print_r($parameters,true)."</pre>\n"; die();
-			Yii::app()->db->createCommand($sql)->execute($parameters);
+			if ($this->get('logtable', 'Survey', $surveyid) == true) {
+				//CREATE ENTRY INTO "{$sDBPrefix}response_log"
+				$sql = "insert into {$sDBPrefix}response_log
+					(date, remote_addr, surveyid, token, response_count, responseid, response)
+				values
+					(:date, :remote_addr, :surveyid, :token, :response_count, :responseid, :response)
+				";
+				//echo "<br /><br /><br /><pre>".$sql."\nparameters = ".print_r($parameters,true)."</pre>\n"; die();
+				Yii::app()->db->createCommand($sql)->execute($parameters);
+			}
+			if ($this->get('logsurvey', 'Survey', $surveyid) == true) {
+				$sid = $this->get('logsurveyid');
+				$sql = "SELECT title, gid, qid FROM {{questions}} WHERE sid={$sid} and parent_qid=0 ORDER BY qid";
+				$qidarr = Yii::app()->db->createCommand($sql)->queryAll();
+				$fields = array();
+/*
+$qidarr = Array
+(
+    [0] => Array
+        (
+            [title] => date
+            [gid] => 465
+            [qid] => 4328
+        )
+
+    [1] => Array
+        (
+            [title] => remoteaddr
+            [gid] => 465
+            [qid] => 4329
+        )
+
+    [2] => Array
+        (
+            [title] => surveyid
+            [gid] => 465
+            [qid] => 4330
+        )
+
+    [3] => Array
+        (
+            [title] => token
+            [gid] => 465
+            [qid] => 4331
+        )
+
+    [4] => Array
+        (
+            [title] => responsecount
+            [gid] => 465
+            [qid] => 4332
+        )
+
+    [5] => Array
+        (
+            [title] => responseid
+            [gid] => 465
+            [qid] => 4333
+        )
+
+    [6] => Array
+        (
+            [title] => response
+            [gid] => 465
+            [qid] => 4334
+        )
+
+)
+*/
+				foreach($qidarr as $question) {
+					if ($question['title'] == 'remoteaddr') $fields['remote_addr'] = $sid.'X'.$question['gid'].'X'.$question['qid'];
+					else if ($question['title'] == 'responsecount') $fields['response_count'] = $sid.'X'.$question['gid'].'X'.$question['qid'];
+					else $fields[$question['title']] = $sid.'X'.$question['gid'].'X'.$question['qid'];
+				}
+/*
+$fields = Array
+(
+    [date] => 999999X465X4328
+    [remote_addr] => 999999X465X4329
+    [surveyid] => 999999X465X4330
+    [token] => 999999X465X4331
+    [response_count] => 999999X465X4332
+    [responseid] => 999999X465X4333
+    [response] => 999999X465X4334
+)
+*/
+				// INSERT record into Response Log seurvey
+				$sql = "insert into {$sDBPrefix}survey_{$sid}
+					({$fields['date']}, {$fields['remote_addr']}, {$fields['surveyid']}, {$fields['token']}, {$fields['response_count']}, {$fields['responseid']}, {$fields['response']})
+				values
+					(:date, :remote_addr, :surveyid, :token, :response_count, :responseid, :response)
+				";
+				// die("logsurveyid = $sid\n<pre>".$sql."\n".print_r($parameters,true)."\n".print_r($qidarr,true)."</pre>\n");
+				Yii::app()->db->createCommand($sql)->execute($parameters);
+			}
+/*
+CREATE TABLE IF NOT EXISTS lime_survey_999999 (
+  id int(11) NOT NULL AUTO_INCREMENT,
+  token varchar(35) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+  submitdate datetime DEFAULT NULL,
+  lastpage int(11) DEFAULT NULL,
+  startlanguage varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  999999X465X4328 datetime DEFAULT NULL,
+  999999X465X4329 text COLLATE utf8mb4_unicode_ci,
+  999999X465X4330 decimal(30,10) DEFAULT NULL,
+  999999X465X4331 text COLLATE utf8mb4_unicode_ci,
+  999999X465X4332 decimal(30,10) DEFAULT NULL,
+  999999X465X4333 decimal(30,10) DEFAULT NULL,
+  999999X465X4334 text COLLATE utf8mb4_unicode_ci,
+  PRIMARY KEY (id),
+  KEY idx_survey_token_999999_45577 (token)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+*/
 		}
 	}
 ?>
