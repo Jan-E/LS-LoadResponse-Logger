@@ -2,7 +2,7 @@
 	class LoadResponseLogger extends \ls\pluginmanager\PluginBase
 	{
 
-		static protected $description = 'Log $_POST and $oResponses, used in application/controllers/survey/index.php function action()';
+		static protected $description = 'Log $_POST, loaded answers and $oResponses, used in application/controllers/survey/index.php function action()';
 		static protected $name = 'LoadResponseLogger';
 
 		protected $storage = 'DbStorage';
@@ -17,8 +17,18 @@
 
 			// Saves survey specific settings.
 			$this->subscribe('newSurveySettings');
+			
+			// Clean up on deactivate
+			$this->subscribe('beforeDeactivate');
 		}
 		
+		public function beforeDeactivate()
+		{
+			$sDBPrefix = Yii::app()->db->tablePrefix;
+			$sql = "DROP TABLE IF EXISTS {$sDBPrefix}response_log";
+			Yii::app()->db->createCommand($sql)->execute();
+		}
+
 		protected $settings = array(
 			'enabled' => array(
 				'type' => 'select',
@@ -252,7 +262,7 @@
 					else $fields[$question['title']] = $sid.'X'.$question['gid'].'X'.$question['qid'];
 				}
 
-				// INSERT record into Response Log seurvey
+				// INSERT record into Response Log survey
 				$sql = "insert into {$sDBPrefix}survey_{$sid}
 					({$fields['date']}, {$fields['remote_addr']}, {$fields['surveyid']}, {$fields['token']}, {$fields['response_count']}, {$fields['responseid']}, {$fields['loadedanswers']}, {$fields['response']})
 				values
