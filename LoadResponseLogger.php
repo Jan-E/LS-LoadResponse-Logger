@@ -9,35 +9,6 @@
 
 		public function init()
 		{
-			if ($this->get('logtable', 'Survey', $surveyid) == true) {
-				$sDBPrefix = Yii::app()->db->tablePrefix;
-				$mysql = "CREATE TABLE IF NOT EXISTS {$sDBPrefix}response_log (
-					`id` int(11) NOT NULL AUTO_INCREMENT,
-					`date` datetime NOT NULL,
-					`remote_addr` varchar(39) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
-					`surveyid` int(11) NOT NULL,
-					`token` varchar(35) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
-					`response_count` int(11) DEFAULT NULL,
-					`responseid` int(11) DEFAULT NULL,
-					`response` longtext COLLATE utf8mb4_unicode_ci NOT NULL,
-					PRIMARY KEY (id)
-				) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-				$pgsql = "CREATE TABLE IF NOT EXISTS {$sDBPrefix}response_log (
-					id SERIAL,
-					date timestamp without time zone NOT NULL,
-					remote_addr character varying(39) NOT NULL,
-					surveyid integer NOT NULL,
-					token character varying(35),
-					response_count integer,
-					responseid integer,
-					response text
-				)";
-				$constring = Yii::app()->db->connectionString;
-				if (stristr($constring, "mysql:") !== false) $sql = $mysql;
-				else $sql = $pgsql;
-				Yii::app()->db->createCommand($sql)->execute();
-			}
-			
 			$this->subscribe('beforeSurveyPage');
 			$this->subscribe('beforeLoadResponse');
 			
@@ -114,7 +85,7 @@
 					),
 					'logsurvey' => array(
 						'type' => 'boolean',
-						'label' => 'Store logs in response_log table',
+						'label' => 'Store logs in Response Log \'survey\'',
 						'current' => $this->get('logsurvey', 'Survey', $event->get('survey'), $this->get('logsurvey'))
 					),
 					'logsurveyid' => array(
@@ -161,12 +132,32 @@
 			$date = date("Y-m-d H:i:s", time());
 			$remote_addr = $_SERVER["REMOTE_ADDR"];
 			// borrow code at https://github.com/LimeSurvey/LimeSurvey/blob/master/application/models/Token.php#L224
-			$token = isset($_REQUEST["token"]) ? preg_replace('/[^0-9a-zA-Z_~]/', '', $_REQUEST["token"]) : NULL;
+			$token = isset($_REQUEST["token"]) ? preg_replace('/[^0-9a-zA-Z_~]/', '', $_REQUEST["token"]) : 
+				(isset($_SESSION['survey_'.$surveyid]['token']) ? preg_replace('/[^0-9a-zA-Z_~]/', '', $_SESSION['survey_'.$surveyid]['token']) : NULL);
 			$response_count = NULL;
 			$responseid = NULL;
-			$responsedump = isset($_POST["token"]) ? "beforeSurveyPage post-log: ".print_r($_POST,true) : "beforeSurveyPage no \$_POST[\"token\"], only \$_GET";
+			$answerlist = "";
+			if (isset($_SESSION['survey_'.$surveyid]['token'])) {
+				$printarr = $_SESSION['survey_'.$surveyid];
+				$thisstep = $_SESSION['survey_'.$surveyid]['step'];
+				$group = $_SESSION['survey_'.$surveyid]['grouplist'][($thisstep-1)];
+				$gid = $group['gid'];
+				foreach($printarr as $key => $value) {
+					if (stristr($key,'X'.$gid)) {
+						$xqid = explode('X',$key);
+						if (count($xqid) == 3 && stripos($xqid[1],$gid) === 0) {
+							$answerlist .= "[{$key}] = {$value} \r\n";
+						}
+					}
+				}
+			}
+			$loadedanswers = isset($_SESSION['survey_'.$surveyid]['token']) && $answerlist!="" ? "beforeSurveyPage loaded answers:\r\n".$answerlist : "";
+			$responsearr = $_POST;
+			unset($responsearr['YII_CSRF_TOKEN']);
+			unset($responsearr['fieldnames']);
+			$responsedump = isset($_POST["token"]) ? "beforeSurveyPage post-log: ".print_r($responsearr,true) : "beforeSurveyPage no \$_POST[\"token\"], only \$_GET";
 			if (isset($_REQUEST["token"])) {
-				$this->saveLoadResponse($date, $remote_addr, $surveyid, $token, $response_count, $responseid, $responsedump);
+				$this->saveLoadResponse($date, $remote_addr, $surveyid, $token, $response_count, $responseid, $loadedanswers, $responsedump);
 			}
 		}
 		
@@ -185,9 +176,10 @@
 				$token = $response->token;
 				$responseid = $response->id;
 				$single_response = $response;
-				$responsedump = "beforeLoadResponse: ".print_r($response,true);
-				//echo "<pre>\n\n\n\ndate={$date}\nremote_addr = {$remote_addr}\nsurveyid = {$surveyid}\ntoken = {$token}\nresponse count = {$response_count}\nresponseid = {$responseid}\nresponse = {$responsedump}</pre>\n";
-				$this->saveLoadResponse($date, $remote_addr, $surveyid, $token, $response_count, $responseid, $responsedump);
+				$loadedanswers = "beforeLoadResponse:\r\n".print_r($response,true);
+				$responsedump = "";
+				//echo "<pre>\n\n\n\ndate={$date}\nremote_addr = {$remote_addr}\nsurveyid = {$surveyid}\ntoken = {$token}\nresponse count = {$response_count}\nloadedanswers = {$loadedanswers}\nresponseid = {$responseid}\nresponse = {$responsedump}</pre>\n";
+				$this->saveLoadResponse($date, $remote_addr, $surveyid, $token, $response_count, $responseid, $loadedanswers, $responsedump);
 			}
 			if ($this->get('forceloadsingle', 'Survey', $surveyid) == true) {
 				if ($response_count == 1) {
@@ -199,7 +191,7 @@
 			// echo "<br /><br /><br /><pre>_SESSION = ".print_r($_SESSION,true)."</pre>\n";
 		}
 
-		private function saveLoadResponse($date, $remote_addr, $surveyid, $token, $response_count, $responseid, $response) {
+		private function saveLoadResponse($date, $remote_addr, $surveyid, $token, $response_count, $responseid, $loadedanswers, $response) {
 			$sDBPrefix = Yii::app()->db->tablePrefix;
 			$parameters = array(
 				'date' => $date,
@@ -208,14 +200,43 @@
 				'token' => $token,
 				'response_count' => $response_count,
 				'responseid' => $responseid,
+				'loadedanswers' => $loadedanswers,
 				'response' => $response
 			);
 			if ($this->get('logtable', 'Survey', $surveyid) == true) {
+				$sDBPrefix = Yii::app()->db->tablePrefix;
+				$mysql = "CREATE TABLE IF NOT EXISTS {$sDBPrefix}response_log (
+					`id` int(11) NOT NULL AUTO_INCREMENT,
+					`date` datetime NOT NULL,
+					`remote_addr` varchar(39) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+					`surveyid` int(11) NOT NULL,
+					`token` varchar(35) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+					`response_count` int(11) DEFAULT NULL,
+					`responseid` int(11) DEFAULT NULL,
+					`loadedanswers` longtext COLLATE utf8mb4_unicode_ci NOT NULL,
+					`response` longtext COLLATE utf8mb4_unicode_ci NOT NULL,
+					PRIMARY KEY (id)
+				) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+				$pgsql = "CREATE TABLE IF NOT EXISTS {$sDBPrefix}response_log (
+					id SERIAL,
+					date timestamp without time zone NOT NULL,
+					remote_addr character varying(39) NOT NULL,
+					surveyid integer NOT NULL,
+					token character varying(35),
+					response_count integer,
+					responseid integer,
+					loadedanswers text,
+					response text
+				)";
+				$constring = Yii::app()->db->connectionString;
+				if (stristr($constring, "mysql:") !== false) $sql = $mysql;
+				else $sql = $pgsql;
+				Yii::app()->db->createCommand($sql)->execute();
 				//CREATE ENTRY INTO "{$sDBPrefix}response_log"
 				$sql = "insert into {$sDBPrefix}response_log
-					(date, remote_addr, surveyid, token, response_count, responseid, response)
+					(date, remote_addr, surveyid, token, response_count, responseid, loadedanswers, response)
 				values
-					(:date, :remote_addr, :surveyid, :token, :response_count, :responseid, :response)
+					(:date, :remote_addr, :surveyid, :token, :response_count, :responseid, :loadedanswers, :response)
 				";
 				//echo "<br /><br /><br /><pre>".$sql."\nparameters = ".print_r($parameters,true)."</pre>\n"; die();
 				Yii::app()->db->createCommand($sql)->execute($parameters);
@@ -225,104 +246,21 @@
 				$sql = "SELECT title, gid, qid FROM {{questions}} WHERE sid={$sid} and parent_qid=0 ORDER BY qid";
 				$qidarr = Yii::app()->db->createCommand($sql)->queryAll();
 				$fields = array();
-/*
-$qidarr = Array
-(
-    [0] => Array
-        (
-            [title] => date
-            [gid] => 465
-            [qid] => 4328
-        )
-
-    [1] => Array
-        (
-            [title] => remoteaddr
-            [gid] => 465
-            [qid] => 4329
-        )
-
-    [2] => Array
-        (
-            [title] => surveyid
-            [gid] => 465
-            [qid] => 4330
-        )
-
-    [3] => Array
-        (
-            [title] => token
-            [gid] => 465
-            [qid] => 4331
-        )
-
-    [4] => Array
-        (
-            [title] => responsecount
-            [gid] => 465
-            [qid] => 4332
-        )
-
-    [5] => Array
-        (
-            [title] => responseid
-            [gid] => 465
-            [qid] => 4333
-        )
-
-    [6] => Array
-        (
-            [title] => response
-            [gid] => 465
-            [qid] => 4334
-        )
-
-)
-*/
 				foreach($qidarr as $question) {
 					if ($question['title'] == 'remoteaddr') $fields['remote_addr'] = $sid.'X'.$question['gid'].'X'.$question['qid'];
 					else if ($question['title'] == 'responsecount') $fields['response_count'] = $sid.'X'.$question['gid'].'X'.$question['qid'];
 					else $fields[$question['title']] = $sid.'X'.$question['gid'].'X'.$question['qid'];
 				}
-/*
-$fields = Array
-(
-    [date] => 999999X465X4328
-    [remote_addr] => 999999X465X4329
-    [surveyid] => 999999X465X4330
-    [token] => 999999X465X4331
-    [response_count] => 999999X465X4332
-    [responseid] => 999999X465X4333
-    [response] => 999999X465X4334
-)
-*/
+
 				// INSERT record into Response Log seurvey
 				$sql = "insert into {$sDBPrefix}survey_{$sid}
-					({$fields['date']}, {$fields['remote_addr']}, {$fields['surveyid']}, {$fields['token']}, {$fields['response_count']}, {$fields['responseid']}, {$fields['response']})
+					({$fields['date']}, {$fields['remote_addr']}, {$fields['surveyid']}, {$fields['token']}, {$fields['response_count']}, {$fields['responseid']}, {$fields['loadedanswers']}, {$fields['response']})
 				values
-					(:date, :remote_addr, :surveyid, :token, :response_count, :responseid, :response)
+					(:date, :remote_addr, :surveyid, :token, :response_count, :responseid, :loadedanswers, :response)
 				";
 				// die("logsurveyid = $sid\n<pre>".$sql."\n".print_r($parameters,true)."\n".print_r($qidarr,true)."</pre>\n");
 				Yii::app()->db->createCommand($sql)->execute($parameters);
 			}
-/*
-CREATE TABLE IF NOT EXISTS lime_survey_999999 (
-  id int(11) NOT NULL AUTO_INCREMENT,
-  token varchar(35) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
-  submitdate datetime DEFAULT NULL,
-  lastpage int(11) DEFAULT NULL,
-  startlanguage varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
-  999999X465X4328 datetime DEFAULT NULL,
-  999999X465X4329 text COLLATE utf8mb4_unicode_ci,
-  999999X465X4330 decimal(30,10) DEFAULT NULL,
-  999999X465X4331 text COLLATE utf8mb4_unicode_ci,
-  999999X465X4332 decimal(30,10) DEFAULT NULL,
-  999999X465X4333 decimal(30,10) DEFAULT NULL,
-  999999X465X4334 text COLLATE utf8mb4_unicode_ci,
-  PRIMARY KEY (id),
-  KEY idx_survey_token_999999_45577 (token)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-*/
 		}
 	}
 ?>

@@ -171,6 +171,24 @@
     <help/>
     <other><![CDATA[N]]></other>
     <mandatory><![CDATA[N]]></mandatory>
+    <question_order><![CDATA[8]]></question_order>
+    <language><![CDATA[en]]></language>
+    <scale_id><![CDATA[0]]></scale_id>
+    <same_default><![CDATA[0]]></same_default>
+    <relevance><![CDATA[1]]></relevance>
+   </row>
+   <row>
+    <qid><![CDATA[4544]]></qid>
+    <parent_qid><![CDATA[0]]></parent_qid>
+    <sid><![CDATA[999999]]></sid>
+    <gid><![CDATA[465]]></gid>
+    <type><![CDATA[U]]></type>
+    <title><![CDATA[loadedanswers]]></title>
+    <question/>
+    <preg/>
+    <help/>
+    <other><![CDATA[N]]></other>
+    <mandatory><![CDATA[N]]></mandatory>
     <question_order><![CDATA[7]]></question_order>
     <language><![CDATA[en]]></language>
     <scale_id><![CDATA[0]]></scale_id>
@@ -262,6 +280,11 @@
     <attribute><![CDATA[statistics_showgraph]]></attribute>
     <value><![CDATA[0]]></value>
    </row>
+   <row>
+    <qid><![CDATA[4544]]></qid>
+    <attribute><![CDATA[statistics_showgraph]]></attribute>
+    <value><![CDATA[0]]></value>
+   </row>
   </rows>
  </question_attributes>
  <surveys>
@@ -338,7 +361,7 @@
     <usecookie><![CDATA[N]]></usecookie>
     <allowregister><![CDATA[N]]></allowregister>
     <allowsave><![CDATA[N]]></allowsave>
-    <autonumber_start><![CDATA[0]]></autonumber_start>
+    <autonumber_start><![CDATA[56]]></autonumber_start>
     <autoredirect><![CDATA[N]]></autoredirect>
     <allowprev><![CDATA[N]]></allowprev>
     <printanswers><![CDATA[N]]></printanswers>
