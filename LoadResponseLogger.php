@@ -64,7 +64,7 @@
 				'type' => 'int',
 				'default' => 999999,
 				'label' => 'Survey ID of the Response Log \'survey\'',
-				'help' => 'Make sure a Survey with this ID is activated.<br />Use limesurvey_survey_999999.lss to add it.',
+				'help' => 'Make sure a Survey with this ID is activated.<br />Use survey_archive_999999.lsa to add it.',
 			),
 			'forceloadsingle' => array(
 				'type' => 'select',
@@ -101,7 +101,7 @@
 					'logsurveyid' => array(
 						'type' => 'int',
 						'label' => 'Survey ID of the Response Log \'survey\'',
-						'help' => 'Make sure a Survey with this ID is activated. Use the lss to add it.',
+						'help' => 'Make sure a Survey with this ID is activated. Use the lsa to add it.',
 						'current' => $this->get('logsurveyid', 'Survey', $event->get('survey'), $this->get('logsurveyid'))
 					),
 					'forceloadsingle' => array(
@@ -152,13 +152,15 @@
 				$thisstep = $_SESSION['survey_'.$surveyid]['step'];
 				$group = $_SESSION['survey_'.$surveyid]['grouplist'][($thisstep-1)];
 				$gid = $group['gid'];
+				unset($printarr['fieldmap']);
+				// echo "<pre>\r\n\r\n\r\n\r\n\r\n\r\n\r\nprintarr beforeSurveyPage step $thisstep gid $gid = ".print_r($printarr,true)."</pre>\n";
 				foreach($printarr as $key => $value) {
-					if (stristr($key,'X'.$gid)) {
+					//if (stristr($key,'X'.$gid.'X')) {
 						$xqid = explode('X',$key);
-						if (count($xqid) == 3 && stripos($xqid[1],$gid) === 0) {
+						if (count($xqid) == 3) {
 							$answerlist .= "[{$key}] = {$value} \r\n";
 						}
-					}
+					//}
 				}
 			}
 			$loadedanswers = isset($_SESSION['survey_'.$surveyid]['token']) && $answerlist!="" ? "beforeSurveyPage loaded answers:\r\n".$answerlist : "";
@@ -264,9 +266,9 @@
 
 				// INSERT record into Response Log survey
 				$sql = "insert into {$sDBPrefix}survey_{$sid}
-					({$fields['date']}, {$fields['remote_addr']}, {$fields['surveyid']}, {$fields['token']}, {$fields['response_count']}, {$fields['responseid']}, {$fields['loadedanswers']}, {$fields['response']})
+					(\"startlanguage\", \"{$fields['date']}\", \"{$fields['remote_addr']}\", \"{$fields['surveyid']}\", \"{$fields['token']}\", \"{$fields['response_count']}\", \"{$fields['responseid']}\", \"{$fields['loadedanswers']}\", \"{$fields['response']}\")
 				values
-					(:date, :remote_addr, :surveyid, :token, :response_count, :responseid, :loadedanswers, :response)
+					('', :date, :remote_addr, :surveyid, :token, :response_count, :responseid, :loadedanswers, :response)
 				";
 				// die("logsurveyid = $sid\n<pre>".$sql."\n".print_r($parameters,true)."\n".print_r($qidarr,true)."</pre>\n");
 				Yii::app()->db->createCommand($sql)->execute($parameters);
